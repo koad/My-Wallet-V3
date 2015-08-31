@@ -46,122 +46,115 @@ var Spender = function(listener) {
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
   // FROM
-  var prepareFrom = {
-    ////////////////////////////////////////////////////////////////////////////
-    fromAddress: function(fromAddress) {
+  this.fromAddress = function(fromAddress) {
 
-      fromAddress = fromAddress === null || fromAddress === undefined || fromAddress === '' ?
-        MyWallet.wallet.activeAddresses : fromAddress;
-      if (!Array.isArray(fromAddress)) {fromAddress = [fromAddress];}
-      coins = getUnspentCoins(fromAddress);
-      self.suggestedSweepFee = coins.then(computeSuggestedSweepFee);
-      changeAddress  = fromAddress[0] || MyWallet.wallet.activeAddresses[0];
-      getPrivateKeys = function (tx) {
-        var getKeyForAddress = function (addr) {
-          var searchAddr = addressPair[addr] === undefined ? addr : addressPair[addr];
-          var k = MyWallet.wallet.key(searchAddr).priv;
-          var privateKeyBase58 = secondPassword == null ? k : WalletCrypto
-            .decryptSecretWithSecondPassword(k, secondPassword, sharedKey, pbkdf2_iterations);
-          var format = MyWallet.detectPrivateKeyFormat(privateKeyBase58);
-          var key = MyWallet.privateKeyStringToKey(privateKeyBase58, format);
-          if (MyWallet.getCompressedAddressString(key) === addr) {
-            key = new Bitcoin.ECKey(key.d, true);
-          }
-          else if (MyWallet.getUnCompressedAddressString(key) === addr) {
-            key = new Bitcoin.ECKey(key.d, false);
-          }
-          return key;
+    fromAddress = fromAddress === null || fromAddress === undefined || fromAddress === '' ?
+      MyWallet.wallet.activeAddresses : fromAddress;
+    if (!Array.isArray(fromAddress)) {fromAddress = [fromAddress];}
+    coins = getUnspentCoins(fromAddress);
+    self.suggestedSweepFee = coins.then(computeSuggestedSweepFee);
+    changeAddress  = fromAddress[0] || MyWallet.wallet.activeAddresses[0];
+    getPrivateKeys = function (tx) {
+      var getKeyForAddress = function (addr) {
+        var searchAddr = addressPair[addr] === undefined ? addr : addressPair[addr];
+        var k = MyWallet.wallet.key(searchAddr).priv;
+        var privateKeyBase58 = secondPassword == null ? k : WalletCrypto
+          .decryptSecretWithSecondPassword(k, secondPassword, sharedKey, pbkdf2_iterations);
+        var format = MyWallet.detectPrivateKeyFormat(privateKeyBase58);
+        var key = MyWallet.privateKeyStringToKey(privateKeyBase58, format);
+        if (MyWallet.getCompressedAddressString(key) === addr) {
+          key = new Bitcoin.ECKey(key.d, true);
         }
-        return tx.addressesOfNeededPrivateKeys.map(getKeyForAddress);
-      };
-
-      return prepareTo;
-    },
-    // ////////////////////////////////////////////////////////////////////////////
-    addressSweep: function(fromAddress) {
-      isSweep = true;
-      return prepareFrom.fromAddress(fromAddress);
-    },
-    ////////////////////////////////////////////////////////////////////////////
-    fromPrivateKey: function(privateKey) {
-      assert(privateKey, "privateKey required");
-      var format = MyWallet.detectPrivateKeyFormat(privateKey);
-      var key    = MyWallet.privateKeyStringToKey(privateKey, format);
-
-      key.pub.compressed = false;
-      var extraAddress = key.pub.getAddress().toString();
-      key.pub.compressed = true;
-      var addr = key.pub.getAddress().toString();
-      var cWIF = key.toWIF();
-
-      if(MyWallet.wallet.addresses.some(function(a){return a !== addr})){
-        var addrPromise = MyWallet.wallet.importLegacyAddress(cWIF, "Redeemed code.", secondPassword);
-        addrPromise.then(function(A){A.archived = true;})
+        else if (MyWallet.getUnCompressedAddressString(key) === addr) {
+          key = new Bitcoin.ECKey(key.d, false);
+        }
+        return key;
       }
-      addressPair[extraAddress] = addr;
-      return prepareFrom.addressSweep([addr, extraAddress]);
-    },
-    ////////////////////////////////////////////////////////////////////////////
-    fromAccount: function(fromIndex){
-      assert(fromIndex !== undefined || fromIndex !== null, "from account index required");
-      var fromAccount = MyWallet.wallet.hdwallet.accounts[fromIndex];
-      changeAddress   = fromAccount.changeAddress;
-      coins           = getUnspentCoins([fromAccount.extendedPublicKey]);
-      self.suggestedSweepFee     = coins.then(computeSuggestedSweepFee);
-      getPrivateKeys  = function (tx) {
-        var extendedPrivateKey = fromAccount.extendedPrivateKey === null || secondPassword === null
-          ? fromAccount.extendedPrivateKey
-          : WalletCrypto.decryptSecretWithSecondPassword( fromAccount.extendedPrivateKey
-                                                        , secondPassword
-                                                        , sharedKey
-                                                        , pbkdf2_iterations);
-        var getKeyForPath = function (neededPrivateKeyPath) {
-          var keyring = new KeyRing(extendedPrivateKey);
-          return keyring.privateKeyFromPath(neededPrivateKeyPath);
-        };
-        return tx.pathsOfNeededPrivateKeys.map(getKeyForPath);
-      };
-      return prepareTo;
+      return tx.addressesOfNeededPrivateKeys.map(getKeyForAddress);
+    };
+
+    return this;
+  };
+  // ////////////////////////////////////////////////////////////////////////////
+  this.addressSweep = function(fromAddress) {
+    isSweep = true;
+    return this.fromAddress(fromAddress);
+  };
+  ////////////////////////////////////////////////////////////////////////////
+  this.fromPrivateKey = function(privateKey) {
+    assert(privateKey, "privateKey required");
+    var format = MyWallet.detectPrivateKeyFormat(privateKey);
+    var key    = MyWallet.privateKeyStringToKey(privateKey, format);
+
+    key.pub.compressed = false;
+    var extraAddress = key.pub.getAddress().toString();
+    key.pub.compressed = true;
+    var addr = key.pub.getAddress().toString();
+    var cWIF = key.toWIF();
+
+    if(MyWallet.wallet.addresses.some(function(a){return a !== addr})){
+      var addrPromise = MyWallet.wallet.importLegacyAddress(cWIF, "Redeemed code.", secondPassword);
+      addrPromise.then(function(A){A.archived = true;})
     }
+    addressPair[extraAddress] = addr;
+    return this.addressSweep([addr, extraAddress]);
+  };
+  ////////////////////////////////////////////////////////////////////////////
+  this.fromAccount = function(fromIndex){
+    assert(fromIndex !== undefined || fromIndex !== null, "from account index required");
+    var fromAccount = MyWallet.wallet.hdwallet.accounts[fromIndex];
+    changeAddress   = fromAccount.changeAddress;
+    coins           = getUnspentCoins([fromAccount.extendedPublicKey]);
+    self.suggestedSweepFee     = coins.then(computeSuggestedSweepFee);
+    getPrivateKeys  = function (tx) {
+      var extendedPrivateKey = fromAccount.extendedPrivateKey === null || secondPassword === null
+        ? fromAccount.extendedPrivateKey
+        : WalletCrypto.decryptSecretWithSecondPassword( fromAccount.extendedPrivateKey
+                                                      , secondPassword
+                                                      , sharedKey
+                                                      , pbkdf2_iterations);
+      var getKeyForPath = function (neededPrivateKeyPath) {
+        var keyring = new KeyRing(extendedPrivateKey);
+        return keyring.privateKeyFromPath(neededPrivateKeyPath);
+      };
+      return tx.pathsOfNeededPrivateKeys.map(getKeyForPath);
+    };
+    return this;
   };
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
   // TO
-  var prepareTo = {
-    getSuggestedSweepFee: function() {return self.suggestedSweepFee;},
-    ////////////////////////////////////////////////////////////////////////////
-    toAddress: function(toAddress, amount, fee) {
+  this.getSuggestedSweepFee = function() {return self.suggestedSweepFee;},
+  ////////////////////////////////////////////////////////////////////////////
+  this.toAddress = function(toAddress, amount, fee) {
 
-      assert(toAddress, "toAddress required");
-      assert(amount || isSweep, "amounts required");
-      if (!Array.isArray(toAddress)) {toAddress = [toAddress];}
-      if (!Array.isArray(amount)) {amount = [amount];}
-      if (!isSweep) {
-        assert(amount.reduce(Helpers.add,0) <= MAX_SATOSHI, "max bitcoin amount of 21 Million");
-        amounts     = amount;
-      };
-      toAddresses = toAddress;
-      forcedFee   = fee;
-      self.tx = coins.then(buildTransaction);
-      return self;
-    },
-    ////////////////////////////////////////////////////////////////////////////
-    toAccount: function(toIndex, amount, fee) {
-      assert(toIndex !== undefined || toIndex !== null, "to account index required");
-      var account = MyWallet.wallet.hdwallet.accounts[toIndex];
-      return prepareTo.toAddress(account.receiveAddress, amount, fee);
-    },
-    ////////////////////////////////////////////////////////////////////////////
-    toEmail: function(email) {
-      // TODO
-    },
-    ////////////////////////////////////////////////////////////////////////////
-    toMobile: function(mobile) {
-      // TODO
-    }
+    assert(toAddress, "toAddress required");
+    assert(amount || isSweep, "amounts required");
+    if (!Array.isArray(toAddress)) {toAddress = [toAddress];}
+    if (!Array.isArray(amount)) {amount = [amount];}
+    if (!isSweep) {
+      assert(amount.reduce(Helpers.add,0) <= MAX_SATOSHI, "max bitcoin amount of 21 Million");
+      amounts     = amount;
+    };
+    toAddresses = toAddress;
+    forcedFee   = fee;
+    self.tx = coins.then(buildTransaction);
+    return this;
   };
-
-  return prepareFrom;
+  ////////////////////////////////////////////////////////////////////////////
+  this.toAccount = function(toIndex, amount, fee) {
+    assert(toIndex !== undefined || toIndex !== null, "to account index required");
+    var account = MyWallet.wallet.hdwallet.accounts[toIndex];
+    return this.toAddress(account.receiveAddress, amount, fee)
+  },
+  ////////////////////////////////////////////////////////////////////////////
+  this.toEmail = function(email) {
+    // TODO
+  };
+  ////////////////////////////////////////////////////////////////////////////
+  this.toMobile = function(mobile) {
+    // TODO
+  };
 
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
